@@ -44,8 +44,14 @@ Environment overrides for the backend: `A2DP_FORCE_MOCK=1` (simulate),
   a signed 32-bit DWORD (negative = attenuation).
 - `AacBitrate`/`AacPeakBitrate` of 0 means "device default" and must be shown as
   **Auto**, never as 0.
-- The driver only reads `Next` on reconnect, which is why Apply disables and
-  re-enables the PnP device.
+- The driver only reads `Next` on reconnect, which is why Apply cycles the PnP
+  device. On a BTHENUM service node the WMI cycle often fails with
+  `0x80041001` (Generic failure); the backend falls back to the raw
+  `Win32_PnPEntity` Disable/Enable methods and then to `pnputil
+  /disable-device` + `/enable-device`. A failed cycle is reported as a warning,
+  never as a failed apply, because the registry write has already succeeded.
+- A device left disabled (`ConfigManagerErrorCode` 22) is surfaced with a
+  `disabled` flag so the UI can offer a one-click re-enable.
 
 ## Architecture
 

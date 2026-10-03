@@ -10,6 +10,7 @@ interface MockDevice {
   next: RegistryValues
   current: RegistryValues
   connected: boolean
+  disabled: boolean
   baseDelayUnits: number
   tick: number
 }
@@ -87,6 +88,7 @@ function makeDevice(
     next,
     current: { ...next, Opened: connected ? 1 : 0 },
     connected,
+    disabled: false,
     baseDelayUnits: nominalDelayUnits(preferred),
     tick: 0
   }
@@ -242,6 +244,7 @@ export class MockProvider implements DriverProvider {
       address: d.address,
       name: d.name,
       instanceId: d.instanceId,
+      disabled: d.disabled,
       capability: { ...d.capability },
       current: { ...d.current },
       next: { ...d.next }
@@ -262,8 +265,13 @@ export class MockProvider implements DriverProvider {
     await new Promise((r) => setTimeout(r, 400))
     d.current = { ...d.next, Opened: 1 }
     d.connected = true
+    d.disabled = false
     d.tick = 0
     d.baseDelayUnits = nominalDelayUnits(primaryCodec(d.next))
+  }
+
+  async enableDevice(instanceId: string): Promise<void> {
+    await this.reconnect(instanceId)
   }
 
   /** Advance the simulated live counters (bitrate jitter, delay, SCO). */

@@ -32,6 +32,7 @@ export function useA2dp(): {
   refresh: () => Promise<void>
   apply: (req: ApplyRequest) => Promise<Result<ApplyResult>>
   elevate: () => Promise<Result<void>>
+  reenable: (address: string) => Promise<Result<void>>
 } {
   const api = useMemo(resolveApi, [])
   const [snapshot, setSnapshot] = useState<AppSnapshot | null>(null)
@@ -123,5 +124,24 @@ export function useA2dp(): {
     return result
   }, [api, pushToast])
 
-  return { snapshot, api, busy, toasts, dismissToast, pushToast, refresh, apply, elevate }
+  const reenable = useCallback(
+    async (address: string) => {
+      setBusy(true)
+      try {
+        const result = await api.reenable(address)
+        if (result.ok) {
+          pushToast({ kind: 'success', title: 'Device re-enabled' })
+          setSnapshot(await api.refresh())
+        } else {
+          pushToast({ kind: 'error', title: 'Re-enable failed', detail: result.error })
+        }
+        return result
+      } finally {
+        setBusy(false)
+      }
+    },
+    [api, pushToast]
+  )
+
+  return { snapshot, api, busy, toasts, dismissToast, pushToast, refresh, apply, elevate, reenable }
 }

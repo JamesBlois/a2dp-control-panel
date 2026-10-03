@@ -47,7 +47,10 @@ function Read-Values([string]$path) {
 }
 
 # Map BT address (last 12 hex chars) -> PnP instance ID for reconnect.
+# A disabled device still exists in Win32_PnPEntity, so this mapping keeps
+# working after a failed cycle and lets the UI offer to re-enable it.
 $instanceMap = @{}
+$disabledMap = @{}
 try {
     Get-CimInstance Win32_PnPEntity -ErrorAction SilentlyContinue |
         Where-Object { $_.DeviceID -like '${BTHENUM_A2DP_PATTERN}' } |
@@ -56,7 +59,12 @@ try {
             $mac = $null
             if ($devId -match '&0&([0-9A-Fa-f]{12})') { $mac = $Matches[1] }
             elseif ($devId -match '_([0-9A-Fa-f]{12})_') { $mac = $Matches[1] }
-            if ($mac) { $instanceMap[$mac.ToLower()] = $devId }
+            if ($mac) {
+                $key = $mac.ToLower()
+                # Keep the first (usually the driver's own service node) mapping.
+                if (-not $instanceMap.ContainsKey($key)) { $instanceMap[$key] = $devId }
+                if ($_.ConfigManagerErrorCode -eq 22) { $disabledMap[$key] = $true }
+            }
         }
 } catch { }
 
@@ -72,11 +80,13 @@ if (Test-Path $capBase) {
         $key12 = $addr.ToLower()
         if ($key12.Length -gt 12) { $key12 = $key12.Substring($key12.Length - 12) }
         $instanceId = $instanceMap[$key12]
+        $disabled = $disabledMap.ContainsKey($key12)
 
         $devices += [ordered]@{
             address    = $addr
             name       = $name
             instanceId = $instanceId
+            disabled   = $disabled
             capability = (Read-Values $capPath)
             current    = (Read-Values ('${CURRENT_KEY}' + '\' + $addr))
             next       = (Read-Values ('${NEXT_KEY}' + '\' + $addr))
@@ -234,6 +244,7 @@ export class PowerShellProvider implements DriverProvider {
           address: String(d.address ?? '').toLowerCase(),
           name: typeof d.name === 'string' ? d.name : '',
           instanceId: typeof d.instanceId === 'string' ? d.instanceId : null,
+          disabled: d.disabled === true,
           capability,
           current: toNumberMap(d.current),
           next: toNumberMap(d.next)
@@ -267,6 +278,17 @@ export class PowerShellProvider implements DriverProvider {
       throw new Error('Invalid PnP instance ID')
     }
     await runPowerShell(RECONNECT_SCRIPT, {
+      timeoutMs: 60_000,
+      payload: { instanceId }
+    })
+  }
+
+  /** Re-enable a device this app disabled, using the most reliable mechanism. */
+  async enableDevice(instanceId: string): Promise<void> {
+    if (!instanceId || /['"`$;|]/.test(instanceId)) {
+      throw new Error('Invalid PnP instance ID')
+    }
+    await runPowerShell(ENABLE_SCRIPT, {
       timeoutMs: 60_000,
       payload: { instanceId }
     })
@@ -305,7 +327,84 @@ $payload = Get-Content -Raw -Path $PayloadPath | ConvertFrom-Json
 $instanceId = [string]$payload.instanceId
 if ($instanceId -notmatch '^[A-Za-z0-9_\\&{}\.\-]+$') { throw "Invalid instance ID" }
 
-Disable-PnpDevice -InstanceId $instanceId -Confirm:$false -ErrorAction Stop
-Start-Sleep -Seconds 2
-Enable-PnpDevice -InstanceId $instanceId -Confirm:$false -ErrorAction Stop
+# Disable-PnpDevice on a BTHENUM service node frequently fails with WMI
+# 0x80041001 (Generic failure). Try the cmdlet, then the raw CIM method, then
+# pnputil, which talks to the device installer directly and takes a different
+# code path.
+$attempts = @()
+$ok = $false
+
+try {
+    Disable-PnpDevice -InstanceId $instanceId -Confirm:$false -ErrorAction Stop
+    $ok = $true
+} catch {
+    $attempts += "Disable-PnpDevice: $($_.Exception.Message)"
+}
+
+if (-not $ok) {
+    try {
+        $dev = Get-CimInstance -ClassName Win32_PnPEntity -Filter "DeviceID='$instanceId'" -ErrorAction Stop
+        if ($dev) {
+            Invoke-CimMethod -InputObject $dev -MethodName Disable -ErrorAction Stop | Out-Null
+            $ok = $true
+        } else {
+            $attempts += "Win32_PnPEntity.Disable: device not found"
+        }
+    } catch {
+        $attempts += "Win32_PnPEntity.Disable: $($_.Exception.Message)"
+    }
+}
+
+if (-not $ok) {
+    $out = & pnputil.exe /disable-device "$instanceId" 2>&1
+    if ($LASTEXITCODE -eq 0) { $ok = $true } else { $attempts += "pnputil: $out" }
+}
+
+if (-not $ok) { throw ($attempts -join ' | ') }
+`
+
+/**
+ * Re-enable a PnP device, trying the least disruptive mechanism first.
+ * Enable-PnpDevice / Win32_PnPEntity.Enable both go through WMI, which for a
+ * torn-down Bluetooth service device can return HRESULT 0x80041001 (Generic
+ * failure). pnputil talks to the device installer directly and is the most
+ * reliable fallback.
+ */
+const ENABLE_SCRIPT = String.raw`
+param([Parameter(Mandatory=$true)][string]$PayloadPath)
+$ErrorActionPreference = 'Stop'
+$payload = Get-Content -Raw -Path $PayloadPath | ConvertFrom-Json
+$instanceId = [string]$payload.instanceId
+if ($instanceId -notmatch '^[A-Za-z0-9_\\&{}\.\-]+$') { throw "Invalid instance ID" }
+
+$attempts = @()
+$ok = $false
+
+try {
+    Enable-PnpDevice -InstanceId $instanceId -Confirm:$false -ErrorAction Stop
+    $ok = $true
+} catch {
+    $attempts += "Enable-PnpDevice: $($_.Exception.Message)"
+}
+
+if (-not $ok) {
+    try {
+        $dev = Get-CimInstance -ClassName Win32_PnPEntity -Filter "DeviceID='$instanceId'" -ErrorAction Stop
+        if ($dev) {
+            Invoke-CimMethod -InputObject $dev -MethodName Enable -ErrorAction Stop | Out-Null
+            $ok = $true
+        } else {
+            $attempts += "Win32_PnPEntity.Enable: device not found"
+        }
+    } catch {
+        $attempts += "Win32_PnPEntity.Enable: $($_.Exception.Message)"
+    }
+}
+
+if (-not $ok) {
+    $out = & pnputil.exe /enable-device "$instanceId" 2>&1
+    if ($LASTEXITCODE -eq 0) { $ok = $true } else { $attempts += "pnputil: $out" }
+}
+
+if (-not $ok) { throw ($attempts -join ' | ') }
 `

@@ -72,8 +72,18 @@ export async function applySettings(
     if (!device.instanceId) {
       warnings.push('Could not resolve the PnP instance ID, so the device was not cycled.')
     } else {
-      await provider.reconnect(device.instanceId)
-      reconnected = true
+      try {
+        await provider.reconnect(device.instanceId)
+        reconnected = true
+      } catch (err) {
+        // The settings are already committed to Next. A failed cycle means the
+        // device may need a manual reconnect, not that the apply was rejected.
+        const detail = err instanceof Error ? err.message : String(err)
+        warnings.push(
+          `Settings were saved, but the device could not be cycled automatically (${detail}). ` +
+            'Reconnect the device (or toggle its Bluetooth) to apply them.'
+        )
+      }
     }
   }
 

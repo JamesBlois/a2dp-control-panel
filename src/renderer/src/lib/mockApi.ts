@@ -171,6 +171,7 @@ function toView(s: Sim): DeviceView {
     instanceId: s.instanceId,
     connected: s.connected,
     scoActive: false,
+    disabled: false,
     capability: s.cap,
     nextValues: s.next,
     currentValues: s.connected ? { ...s.next, Opened: 1 } : null,
@@ -242,6 +243,10 @@ export function createBrowserMockApi(): NonNullable<Window['a2dp']> {
     elevate: async (): Promise<Result<void>> => ({
       ok: false,
       error: 'Elevation is not available in the browser preview.'
+    }),
+    reenable: async (): Promise<Result<void>> => ({
+      ok: false,
+      error: 'Re-enable is not available in the browser preview.'
     }),
     onSnapshot: (cb) => {
       listener = cb

@@ -134,6 +134,22 @@ function registerIpc(): void {
       return { ok: false, error: err instanceof Error ? err.message : String(err) }
     }
   })
+
+  ipcMain.handle(IPC.reenable, async (_event, address: string): Promise<Result<void>> => {
+    const device = watcher.snapshot().devices.find((d) => d.address === address)
+    if (!device) return { ok: false, error: `Unknown device ${address}` }
+    if (!device.instanceId) {
+      return { ok: false, error: 'No PnP instance ID is known for this device.' }
+    }
+    const enable = provider.enableDevice
+    try {
+      await enable.call(provider, device.instanceId)
+      await watcher.refreshNow()
+      return { ok: true, data: undefined }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  })
 }
 
 app.whenReady().then(() => {

@@ -7,6 +7,7 @@ const api: A2dpApi = {
   refresh: () => ipcRenderer.invoke(IPC.refresh),
   apply: (request) => ipcRenderer.invoke(IPC.apply, request),
   elevate: () => ipcRenderer.invoke(IPC.elevate),
+  reenable: (address) => ipcRenderer.invoke(IPC.reenable, address),
   onSnapshot: (cb) => {
     const listener = (_e: unknown, snapshot: AppSnapshot): void => cb(snapshot)
     ipcRenderer.on(IPC.snapshotPush, listener)

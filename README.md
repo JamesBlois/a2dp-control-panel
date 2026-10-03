@@ -32,8 +32,12 @@ the Bluetooth device so the new settings take effect.
   latency (converted from 100 ns units to ms), a coarse link-quality indicator,
   and a phone-call (SCO) indicator.
 - **Apply & reconnect** — writes the selected codec and parameters to the
-  `Next` registry key, then disables and re-enables the PnP device so the driver
-  reconnects with the new configuration.
+  `Next` registry key, then cycles the PnP device so the driver reconnects with
+  the new configuration. Cycling is best-effort: the disable step tries
+  `Disable-PnpDevice`, then `Win32_PnPEntity.Disable`, then `pnputil` (a BTHENUM
+  service node often rejects the WMI path with `0x80041001`). If the device
+  cannot be cycled, the settings are still saved and a warning explains that the
+  device needs a manual reconnect.
 - **Toasts** — notifications when a device connects, disconnects, or changes codec.
 - **Safety rails** — capability-aware validation, an allowlist of writable
   registry values, and clear banners for elevation / driver / service problems.

@@ -9,6 +9,8 @@ export interface DeviceState {
   name: string
   /** PnP instance ID used for disable/enable cycling, when resolvable. */
   instanceId: string | null
+  /** PnP device is currently disabled (ConfigFlags CONFIGFLAG_DISABLED). */
+  disabled: boolean
   capability: RegistryValues
   current: RegistryValues | null
   next: RegistryValues | null
@@ -21,6 +23,8 @@ export interface DeviceView {
   instanceId: string | null
   connected: boolean
   scoActive: boolean
+  /** PnP device is disabled; the app can re-enable it. */
+  disabled: boolean
   /** Full Capability value map, used to filter options and clamp ranges. */
   capability: RegistryValues
   /** Raw Next values (writable target), used to seed the settings editor. */
@@ -100,6 +104,8 @@ export interface A2dpApi {
   apply(request: ApplyRequest): Promise<Result<ApplyResult>>
   /** Relaunch the app with Administrator rights (Windows UAC prompt). */
   elevate(): Promise<Result<void>>
+  /** Re-enable a PnP device that is stuck in the disabled state. */
+  reenable(address: string): Promise<Result<void>>
   onSnapshot(cb: (snapshot: AppSnapshot) => void): () => void
   onDeviceEvent(cb: (event: DeviceEvent) => void): () => void
 }
