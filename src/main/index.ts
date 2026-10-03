@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { execFile } from 'node:child_process'
-import { join } from 'node:path'
+import { isAbsolute, join, resolve } from 'node:path'
 import { IPC } from '@shared/ipc'
 import type { ApplyRequest, ApplyResult, AppSnapshot, DeviceEvent, Result } from '@shared/types'
 import { applySettings } from './backend/apply'
@@ -12,19 +12,29 @@ const watcher = new DeviceWatcher(provider)
 
 let mainWindow: BrowserWindow | null = null
 
-/** Relaunch this executable through UAC. The current instance then quits. */
+/**
+ * Relaunch this executable through UAC. The current instance then quits.
+ *
+ * In dev, electron-vite spawns electron.exe with the built main file as the
+ * first argument (a path relative to the project root), so arguments are
+ * resolved against the working directory before quoting.
+ */
 function relaunchElevated(): void {
   const exe = process.execPath
   const params = process.argv
     .slice(1)
-    .map((a) => (a.includes(' ') ? `"${a}"` : a))
+    .map((a) => {
+      const abs = !isAbsolute(a) ? resolve(process.cwd(), a) : a
+      return /\s/.test(abs) ? `"${abs}"` : abs
+    })
     .join(' ')
 
-  // Start-Process -Verb RunAs raises the UAC prompt; the child inherits our
-  // environment, so the dev renderer URL is preserved.
+  // Start-Process -Verb RunAs raises the UAC prompt; -WorkingDirectory keeps
+  // the relative entry path resolvable and preserves our environment.
   const ps = [
     '$ErrorActionPreference = "Stop"',
     `Start-Process -FilePath '${exe.replace(/'/g, "''")}' ` +
+      `-WorkingDirectory '${process.cwd().replace(/'/g, "''")}' ` +
       `-ArgumentList '${params.replace(/'/g, "''")}' -Verb RunAs`
   ].join('; ')
 
