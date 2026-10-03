@@ -66,6 +66,11 @@ npm run build
 npm run dist
 ```
 
+> Copy each command on its own line — do not paste the trailing `#` comments into
+> your terminal. `electron-vite` takes a positional root argument, so trailing
+> text is interpreted as a directory and the app fails with
+> "An entry point is required in the electron vite main config".
+
 `npm run dist` produces `release/A2DP Control Panel-<version>-Setup.exe`. The
 packaged executable is built with `requestedExecutionLevel: requireAdministrator`,
 so Windows prompts for elevation on launch.
@@ -75,8 +80,11 @@ so Windows prompts for elevation on launch.
 The renderer can run on its own in any browser against a simulated backend:
 
 ```bash
-npm run renderer:dev   # http://localhost:5273
+# start the standalone renderer preview (browser only, simulated backend)
+npm run renderer:dev
 ```
+
+Then open http://localhost:5273
 
 When `window.a2dp` is not present the UI transparently falls back to an
 in-browser mock (`src/renderer/src/lib/mockApi.ts`) with four sample devices. This
@@ -84,14 +92,22 @@ is how the interface is visually verified during development.
 
 ### Running the real backend off-Windows (for testing)
 
-```bash
+PowerShell:
+```powershell
 # Force the simulated main-process backend even on Windows
-A2DP_FORCE_MOCK=1 npm run dev
+$env:A2DP_FORCE_MOCK=1; npm run dev
 
 # Enable periodic simulated connect/disconnect events
-A2DP_MOCK_DYNAMIC=1 npm run dev
+$env:A2DP_MOCK_DYNAMIC=1; npm run dev
 
 # Use PowerShell 7 instead of Windows PowerShell
+$env:A2DP_PS_EXE='pwsh.exe'; npm run dev
+```
+
+bash (macOS/Linux):
+```bash
+A2DP_FORCE_MOCK=1 npm run dev
+A2DP_MOCK_DYNAMIC=1 npm run dev
 A2DP_PS_EXE=pwsh.exe npm run dev
 ```
 
