@@ -47,7 +47,11 @@ the Bluetooth device so the new settings take effect.
   must exist under `HKLM\SYSTEM\CurrentControlSet\Services\AltA2DP`)
 - Administrator rights (writing to `HKLM` and cycling PnP devices both require
   elevation)
-- Node.js 20+ to build from source
+- Node.js 20.19+ or 22.12+ to build from source
+
+> Electron is pinned to **39.x**. Electron 44 dropped the `postinstall` that
+> downloads the runtime binary, which `electron-vite` 5.x depends on — using 44
+> makes `npm run dev` fail with `Error: Electron uninstall`. See `AGENTS.md`.
 
 ---
 
