@@ -2,7 +2,15 @@ import { AlertTriangle, Info, ShieldAlert } from 'lucide-react'
 import type { DriverStatus } from '@shared/types'
 
 /** Top-of-window banner explaining backend / elevation / driver state. */
-export function Banner({ status, onRefresh }: { status: DriverStatus | null; onRefresh: () => void }) {
+export function Banner({
+  status,
+  onRefresh,
+  onElevate
+}: {
+  status: DriverStatus | null
+  onRefresh: () => void
+  onElevate: () => void
+}) {
   if (!status) return null
 
   if (status.mock) {
@@ -58,9 +66,12 @@ export function Banner({ status, onRefresh }: { status: DriverStatus | null; onR
         <ShieldAlert size={15} />
         <span>
           Not running as Administrator. Reading works, but applying settings and reconnecting devices
-          will fail. Close the app and reopen it with “Run as administrator”.
+          will fail. Restart with Administrator rights to write to HKLM.
         </span>
         <span className="banner-actions">
+          <button className="btn sm primary" onClick={onElevate}>
+            Restart as Administrator
+          </button>
           <button className="btn sm" onClick={onRefresh}>
             Retry
           </button>

@@ -46,7 +46,10 @@ the Bluetooth device so the new settings take effect.
 - The Alternative A2DP Driver installed and working (the `AltA2DP` service key
   must exist under `HKLM\SYSTEM\CurrentControlSet\Services\AltA2DP`)
 - Administrator rights (writing to `HKLM` and cycling PnP devices both require
-  elevation)
+  elevation). The installed app requests elevation via its manifest; when running
+  from source with `npm run dev` it starts unelevated, and Apply fails with
+  "Requested registry access is not allowed". Click **Restart as Administrator**
+  in the banner, or launch an elevated terminal before `npm run dev`.
 - Node.js 20.19+ or 22.12+ to build from source
 
 > Electron is pinned to **39.x**. Electron 44 dropped the `postinstall` that

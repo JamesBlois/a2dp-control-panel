@@ -31,6 +31,7 @@ export function useA2dp(): {
   pushToast: (t: Omit<Toast, 'id'>) => void
   refresh: () => Promise<void>
   apply: (req: ApplyRequest) => Promise<Result<ApplyResult>>
+  elevate: () => Promise<Result<void>>
 } {
   const api = useMemo(resolveApi, [])
   const [snapshot, setSnapshot] = useState<AppSnapshot | null>(null)
@@ -116,5 +117,11 @@ export function useA2dp(): {
     [api, pushToast]
   )
 
-  return { snapshot, api, busy, toasts, dismissToast, pushToast, refresh, apply }
+  const elevate = useCallback(async () => {
+    const result = await api.elevate()
+    if (!result.ok) pushToast({ kind: 'error', title: 'Elevation failed', detail: result.error })
+    return result
+  }, [api, pushToast])
+
+  return { snapshot, api, busy, toasts, dismissToast, pushToast, refresh, apply, elevate }
 }

@@ -98,6 +98,8 @@ export interface A2dpApi {
   getSnapshot(): Promise<AppSnapshot>
   refresh(): Promise<AppSnapshot>
   apply(request: ApplyRequest): Promise<Result<ApplyResult>>
+  /** Relaunch the app with Administrator rights (Windows UAC prompt). */
+  elevate(): Promise<Result<void>>
   onSnapshot(cb: (snapshot: AppSnapshot) => void): () => void
   onDeviceEvent(cb: (event: DeviceEvent) => void): () => void
 }

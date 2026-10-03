@@ -12,7 +12,7 @@ import { StatusBar } from './components/StatusBar'
 import { Toasts } from './components/Toasts'
 
 export default function App() {
-  const { snapshot, busy, toasts, dismissToast, refresh, apply } = useA2dp()
+  const { snapshot, busy, toasts, dismissToast, refresh, apply, elevate } = useA2dp()
   const devices = snapshot?.devices ?? []
   const status = snapshot?.status ?? null
 
@@ -59,7 +59,7 @@ export default function App() {
         </span>
       </header>
 
-      <Banner status={status} onRefresh={() => void refresh()} />
+      <Banner status={status} onRefresh={() => void refresh()} onElevate={() => void elevate()} />
 
       <div className="body">
         <DeviceList devices={devices} selected={selectedAddress} onSelect={setSelectedAddress} />

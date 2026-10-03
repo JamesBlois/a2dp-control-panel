@@ -239,6 +239,10 @@ export function createBrowserMockApi(): NonNullable<Window['a2dp']> {
       }
       return { ok: true, data: { written: Object.keys(values), reconnected: req.reconnect, warnings: [] } }
     },
+    elevate: async (): Promise<Result<void>> => ({
+      ok: false,
+      error: 'Elevation is not available in the browser preview.'
+    }),
     onSnapshot: (cb) => {
       listener = cb
       return () => {
