@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
-import { join } from 'node:path'
+import { execFile } from 'node:child_process'
+import { isAbsolute, join, resolve } from 'node:path'
 import { IPC } from '@shared/ipc'
 import type { ApplyRequest, ApplyResult, AppSnapshot, DeviceEvent, Result } from '@shared/types'
 import { applySettings } from './backend/apply'
@@ -10,6 +11,52 @@ const provider = createProvider()
 const watcher = new DeviceWatcher(provider)
 
 let mainWindow: BrowserWindow | null = null
+
+/**
+ * Relaunch this executable through UAC. The current instance then quits.
+ *
+ * In dev, electron-vite spawns electron.exe with the built main file as the
+ * first argument (a path relative to the project root), so arguments are
+ * resolved against the working directory before quoting.
+ */
+function relaunchElevated(): void {
+  const exe = process.execPath
+  const params = process.argv
+    .slice(1)
+    .map((a) => {
+      const abs = !isAbsolute(a) ? resolve(process.cwd(), a) : a
+      return /\s/.test(abs) ? `"${abs}"` : abs
+    })
+    .join(' ')
+
+  // Start-Process -Verb RunAs raises the UAC prompt; -WorkingDirectory keeps
+  // the relative entry path resolvable and preserves our environment.
+  const ps = [
+    '$ErrorActionPreference = "Stop"',
+    `Start-Process -FilePath '${exe.replace(/'/g, "''")}' ` +
+      `-WorkingDirectory '${process.cwd().replace(/'/g, "''")}' ` +
+      `-ArgumentList '${params.replace(/'/g, "''")}' -Verb RunAs`
+  ].join('; ')
+
+  execFile(
+    'powershell.exe',
+    ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', ps],
+    { windowsHide: true },
+    () => {
+      /* UAC declined or PowerShell unavailable: stay running unelevated. */
+    }
+  )
+  // Let the UAC prompt appear before this window closes.
+  setTimeout(() => app.quit(), 800)
+}
+
+/** Windows denies HKLM writes with this wording when the process is not elevated. */
+function isAccessDenied(err: unknown): boolean {
+  const text = err instanceof Error ? err.message : String(err)
+  return /requested registry access is not allowed|access is denied|AccessDenied|UnauthorizedAccess/i.test(
+    text
+  )
+}
 
 function send(channel: string, payload: unknown): void {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload)
@@ -67,11 +114,42 @@ function registerIpc(): void {
         await watcher.refreshNow()
         return { ok: true, data: result }
       } catch (err) {
-        const error = err instanceof Error ? err.message : String(err)
+        const raw = err instanceof Error ? err.message : String(err)
+        const error = isAccessDenied(err)
+          ? 'Access denied writing to HKLM. Restart the app as Administrator, then apply again.'
+          : raw
         return { ok: false, error }
       }
     }
   )
+
+  ipcMain.handle(IPC.elevate, async (): Promise<Result<void>> => {
+    if (process.platform !== 'win32') {
+      return { ok: false, error: 'Elevation is only available on Windows.' }
+    }
+    try {
+      relaunchElevated()
+      return { ok: true, data: undefined }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
+  ipcMain.handle(IPC.reenable, async (_event, address: string): Promise<Result<void>> => {
+    const device = watcher.snapshot().devices.find((d) => d.address === address)
+    if (!device) return { ok: false, error: `Unknown device ${address}` }
+    if (!device.instanceId) {
+      return { ok: false, error: 'No PnP instance ID is known for this device.' }
+    }
+    const enable = provider.enableDevice
+    try {
+      await enable.call(provider, device.instanceId)
+      await watcher.refreshNow()
+      return { ok: true, data: undefined }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  })
 }
 
 app.whenReady().then(() => {

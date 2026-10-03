@@ -32,8 +32,12 @@ the Bluetooth device so the new settings take effect.
   latency (converted from 100 ns units to ms), a coarse link-quality indicator,
   and a phone-call (SCO) indicator.
 - **Apply & reconnect** — writes the selected codec and parameters to the
-  `Next` registry key, then disables and re-enables the PnP device so the driver
-  reconnects with the new configuration.
+  `Next` registry key, then cycles the PnP device so the driver reconnects with
+  the new configuration. Cycling is best-effort: the disable step tries
+  `Disable-PnpDevice`, then `Win32_PnPEntity.Disable`, then `pnputil` (a BTHENUM
+  service node often rejects the WMI path with `0x80041001`). If the device
+  cannot be cycled, the settings are still saved and a warning explains that the
+  device needs a manual reconnect.
 - **Toasts** — notifications when a device connects, disconnects, or changes codec.
 - **Safety rails** — capability-aware validation, an allowlist of writable
   registry values, and clear banners for elevation / driver / service problems.
@@ -46,8 +50,15 @@ the Bluetooth device so the new settings take effect.
 - The Alternative A2DP Driver installed and working (the `AltA2DP` service key
   must exist under `HKLM\SYSTEM\CurrentControlSet\Services\AltA2DP`)
 - Administrator rights (writing to `HKLM` and cycling PnP devices both require
-  elevation)
-- Node.js 20+ to build from source
+  elevation). The installed app requests elevation via its manifest; when running
+  from source with `npm run dev` it starts unelevated, and Apply fails with
+  "Requested registry access is not allowed". Click **Restart as Administrator**
+  in the banner, or launch an elevated terminal before `npm run dev`.
+- Node.js 20.19+ or 22.12+ to build from source
+
+> Electron is pinned to **39.x**. Electron 44 dropped the `postinstall` that
+> downloads the runtime binary, which `electron-vite` 5.x depends on — using 44
+> makes `npm run dev` fail with `Error: Electron uninstall`. See `AGENTS.md`.
 
 ---
 
@@ -66,6 +77,11 @@ npm run build
 npm run dist
 ```
 
+> Copy each command on its own line — do not paste the trailing `#` comments into
+> your terminal. `electron-vite` takes a positional root argument, so trailing
+> text is interpreted as a directory and the app fails with
+> "An entry point is required in the electron vite main config".
+
 `npm run dist` produces `release/A2DP Control Panel-<version>-Setup.exe`. The
 packaged executable is built with `requestedExecutionLevel: requireAdministrator`,
 so Windows prompts for elevation on launch.
@@ -75,8 +91,11 @@ so Windows prompts for elevation on launch.
 The renderer can run on its own in any browser against a simulated backend:
 
 ```bash
-npm run renderer:dev   # http://localhost:5273
+# start the standalone renderer preview (browser only, simulated backend)
+npm run renderer:dev
 ```
+
+Then open http://localhost:5273
 
 When `window.a2dp` is not present the UI transparently falls back to an
 in-browser mock (`src/renderer/src/lib/mockApi.ts`) with four sample devices. This
@@ -84,14 +103,22 @@ is how the interface is visually verified during development.
 
 ### Running the real backend off-Windows (for testing)
 
-```bash
+PowerShell:
+```powershell
 # Force the simulated main-process backend even on Windows
-A2DP_FORCE_MOCK=1 npm run dev
+$env:A2DP_FORCE_MOCK=1; npm run dev
 
 # Enable periodic simulated connect/disconnect events
-A2DP_MOCK_DYNAMIC=1 npm run dev
+$env:A2DP_MOCK_DYNAMIC=1; npm run dev
 
 # Use PowerShell 7 instead of Windows PowerShell
+$env:A2DP_PS_EXE='pwsh.exe'; npm run dev
+```
+
+bash (macOS/Linux):
+```bash
+A2DP_FORCE_MOCK=1 npm run dev
+A2DP_MOCK_DYNAMIC=1 npm run dev
 A2DP_PS_EXE=pwsh.exe npm run dev
 ```
 

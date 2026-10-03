@@ -44,6 +44,7 @@ export function deriveDeviceView(state: DeviceState): DeviceView {
     instanceId: state.instanceId,
     connected: (cur?.Opened ?? 0) === 1,
     scoActive: (cur?.ScoActive ?? 0) === 1,
+    disabled: state.disabled,
     capability: cap,
     nextValues: next ?? {},
     currentValues: cur,

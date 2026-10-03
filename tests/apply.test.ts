@@ -9,6 +9,7 @@ function state(overrides: Partial<DeviceState> = {}): DeviceState {
     address: '0000340e224a88bb',
     name: 'Test Device',
     instanceId: 'BTHENUM\\{...}\\0&340E224A88BB_C00000000',
+    disabled: false,
     capability: { Codec: 0x03, SbcChannelMode: 15, SbcSamplingFrequency: 15 },
     current: {
       Codec: 2,
@@ -40,6 +41,8 @@ function recordingProvider(): { provider: DriverProvider; writes: Record<string,
       isWindows: false,
       isAdmin: true,
       driverInstalled: true,
+      devicesKeyPresent: true,
+      keysFound: ['Capability', 'Current', 'Next'],
       serviceInstalled: true,
       serviceRunning: true,
       mock: true,
@@ -50,7 +53,8 @@ function recordingProvider(): { provider: DriverProvider; writes: Record<string,
       writes.push(values)
       return Object.keys(values)
     },
-    reconnect: async () => {}
+    reconnect: async () => {},
+    enableDevice: async () => {}
   }
   return { provider, writes }
 }
@@ -140,5 +144,21 @@ describe('applySettings validation', () => {
     })
     expect(result.reconnected).toBe(false)
     expect(result.warnings.join(' ')).toMatch(/instance ID/)
+  })
+
+  it('keeps the settings when the device cycle fails after a successful write', async () => {
+    const { provider, writes } = recordingProvider()
+    provider.reconnect = async () => {
+      throw new Error('Disable-PnpDevice: Generic failure')
+    }
+    const result = await applySettings(provider, view(), {
+      address: '0000340e224a88bb',
+      codec: 'AAC',
+      values: { AacChannelMode: 4 },
+      reconnect: true
+    })
+    expect(writes).toHaveLength(1)
+    expect(result.reconnected).toBe(false)
+    expect(result.warnings.join(' ')).toMatch(/could not be cycled/)
   })
 })

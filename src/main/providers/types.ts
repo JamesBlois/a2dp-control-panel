@@ -24,4 +24,7 @@ export interface DriverProvider {
 
   /** Disable then re-enable a PnP device to force the driver to reconnect. */
   reconnect(instanceId: string): Promise<void>
+
+  /** Re-enable a device this app disabled, using the most reliable mechanism. */
+  enableDevice(instanceId: string): Promise<void>
 }

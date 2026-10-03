@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Bluetooth, RefreshCw, RotateCcw, Save, Zap } from 'lucide-react'
+import { Bluetooth, RefreshCw, RotateCcw, Save, Zap, AlertTriangle } from 'lucide-react'
 import { CODECS, formatAddress, type CodecId } from '@shared/codec'
 import type { ApplyRequest, DeviceView } from '@shared/types'
 import { useA2dp } from './hooks/useA2dp'
@@ -12,7 +12,7 @@ import { StatusBar } from './components/StatusBar'
 import { Toasts } from './components/Toasts'
 
 export default function App() {
-  const { snapshot, busy, toasts, dismissToast, refresh, apply } = useA2dp()
+  const { snapshot, busy, toasts, dismissToast, refresh, apply, elevate, reenable } = useA2dp()
   const devices = snapshot?.devices ?? []
   const status = snapshot?.status ?? null
 
@@ -59,7 +59,7 @@ export default function App() {
         </span>
       </header>
 
-      <Banner status={status} onRefresh={() => void refresh()} />
+      <Banner status={status} onRefresh={() => void refresh()} onElevate={() => void elevate()} />
 
       <div className="body">
         <DeviceList devices={devices} selected={selectedAddress} onSelect={setSelectedAddress} />
@@ -73,6 +73,7 @@ export default function App() {
               onReconnectChange={setReconnect}
               onApply={apply}
               onRefresh={refresh}
+              onReenable={reenable}
             />
           ) : (
             <div className="main-empty">
@@ -102,6 +103,7 @@ interface PanelProps {
   onReconnectChange: (v: boolean) => void
   onApply: (req: ApplyRequest) => Promise<unknown>
   onRefresh: () => Promise<void>
+  onReenable: (address: string) => Promise<unknown>
 }
 
 function DevicePanel({
@@ -110,7 +112,8 @@ function DevicePanel({
   reconnect,
   onReconnectChange,
   onApply,
-  onRefresh
+  onRefresh,
+  onReenable
 }: PanelProps) {
   const initialCodec = activeCodec(device) ?? device.supports[0] ?? 'SBC'
   const [codec, setCodec] = useState<CodecId>(initialCodec)
@@ -167,11 +170,31 @@ function DevicePanel({
               <span className="chip accent">Live: {CODECS[device.currentCodec].label}</span>
             )}
             {device.scoActive && <span className="chip amber">Phone call active</span>}
+            {device.disabled && <span className="chip red">Disabled</span>}
             {device.pendingChanges && <span className="chip amber">Pending reconnect</span>}
             {device.error > 0 && <span className="chip red">Error {device.error}</span>}
           </div>
         </div>
       </div>
+
+      {device.disabled && (
+        <div className="banner warn">
+          <AlertTriangle size={15} />
+          <span>
+            This device is currently <strong>disabled</strong> in Windows. Settings are saved, but
+            audio will not play until it is re-enabled.
+          </span>
+          <span className="banner-actions">
+            <button
+              className="btn sm primary"
+              disabled={busy}
+              onClick={() => void onReenable(device.address)}
+            >
+              Re-enable device
+            </button>
+          </span>
+        </div>
+      )}
 
       <CodecSelector device={device} selected={codec} onSelect={onSelectCodec} />
       <CodecParams device={device} codec={codec} values={values} onChange={onChange} />

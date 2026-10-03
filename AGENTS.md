@@ -24,6 +24,14 @@ Environment overrides for the backend: `A2DP_FORCE_MOCK=1` (simulate),
 
 ## Domain gotchas
 
+- **Electron must stay on major 39** while `electron-vite` is on 5.x. Electron 44
+  removed its `postinstall` and now downloads its binary lazily from `index.js`,
+  but electron-vite's own resolver reads `node_modules/electron/path.txt` and
+  throws `Error: Electron uninstall` when it is absent — it never triggers the
+  lazy download. Electron 39 still ships `postinstall: node install.js`, which
+  creates `path.txt`. electron-vite 5.0.0's Node/Chrome target maps also stop at
+  Electron 39. Bumping Electron requires electron-vite >= 6 (currently beta).
+  If `path.txt` goes missing: `npm rebuild electron`.
 - **The `Codec` DWORD is a 6-bit bitmask, not an enum**: 1=SBC, 2=AAC, 4=LDAC,
   8=aptX, 16=aptX HD, 32=aptX LL. `Capability` holds the OR of supported codecs;
   `Current`/`Next` hold a single bit. Never write multiple bits to `Next`.
@@ -36,8 +44,14 @@ Environment overrides for the backend: `A2DP_FORCE_MOCK=1` (simulate),
   a signed 32-bit DWORD (negative = attenuation).
 - `AacBitrate`/`AacPeakBitrate` of 0 means "device default" and must be shown as
   **Auto**, never as 0.
-- The driver only reads `Next` on reconnect, which is why Apply disables and
-  re-enables the PnP device.
+- The driver only reads `Next` on reconnect, which is why Apply cycles the PnP
+  device. On a BTHENUM service node the WMI cycle often fails with
+  `0x80041001` (Generic failure); the backend falls back to the raw
+  `Win32_PnPEntity` Disable/Enable methods and then to `pnputil
+  /disable-device` + `/enable-device`. A failed cycle is reported as a warning,
+  never as a failed apply, because the registry write has already succeeded.
+- A device left disabled (`ConfigManagerErrorCode` 22) is surfaced with a
+  `disabled` flag so the UI can offer a one-click re-enable.
 
 ## Architecture
 
