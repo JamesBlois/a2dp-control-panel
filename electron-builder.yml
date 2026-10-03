@@ -1,0 +1,31 @@
+appId: com.a2dpcontrolpanel.app
+productName: A2DP Control Panel
+copyright: MIT licensed. Not affiliated with Luculent Systems, LLC.
+
+directories:
+  output: release
+
+files:
+  - out/**/*
+  - package.json
+  - '!**/*.map'
+  - '!node_modules/**/{test,__tests__,tests,example,examples,docs,doc}/**'
+  - '!node_modules/**/*.{md,markdown,ts,tsx,map}'
+
+# Registry (HKLM) writes and PnP device cycling both require elevation.
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  requestedExecutionLevel: requireAdministrator
+  artifactName: ${productName}-${version}-Setup.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: true
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: A2DP Control Panel
+  deleteAppDataOnUninstall: false
