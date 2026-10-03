@@ -194,6 +194,8 @@ export function createBrowserMockApi(): NonNullable<Window['a2dp']> {
       isWindows: false,
       isAdmin: false,
       driverInstalled: false,
+      devicesKeyPresent: false,
+      keysFound: [],
       serviceInstalled: false,
       serviceRunning: false,
       mock: true,

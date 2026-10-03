@@ -215,10 +215,13 @@ export class MockProvider implements DriverProvider {
       isWindows: false,
       isAdmin: false,
       driverInstalled: false,
+      devicesKeyPresent: false,
+      keysFound: [],
       serviceInstalled: false,
       serviceRunning: false,
       mock: true,
-      message: 'Simulated backend active — no real AltA2DP driver is present on this machine.'
+      message: 'Simulated backend active — no real AltA2DP driver is present on this machine.',
+      debug: null
     }
   }
 

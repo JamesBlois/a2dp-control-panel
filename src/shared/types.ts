@@ -46,6 +46,10 @@ export interface DriverStatus {
   isAdmin: boolean
   /** HKLM AltA2DP service key exists (driver installed). */
   driverInstalled: boolean
+  /** `...\Parameters\Devices` exists (driver has been configured at least once). */
+  devicesKeyPresent: boolean
+  /** Which of Capability/Current/Next subkeys currently exist. */
+  keysFound: string[]
   /** AltA2dpSVC service is present/running. */
   serviceInstalled: boolean
   serviceRunning: boolean
@@ -53,6 +57,8 @@ export interface DriverStatus {
   mock: boolean
   /** Human-readable detail for the banner (e.g. last backend error). */
   message: string | null
+  /** Raw stdout/stderr from the last backend invocation, for troubleshooting. */
+  debug?: string | null
 }
 
 export interface AppSnapshot {

@@ -7,6 +7,7 @@ import {
   BTHENUM_A2DP_PATTERN,
   CAPABILITY_KEY,
   CURRENT_KEY,
+  DEVICES_KEY,
   NEXT_KEY,
   READ_VALUES,
   SERVICE_KEY,
@@ -97,6 +98,15 @@ try {
 } catch { }
 
 $driverInstalled = Test-Path '${SERVICE_KEY}'
+$devicesKeyPresent = Test-Path '${DEVICES_KEY}'
+
+# Report which of the three state subkeys exist. The driver creates Devices\
+# only after a device has been configured, so a missing Capability\ is a normal
+# "nothing configured yet" state rather than an error.
+$keysFound = @()
+foreach ($k in @('Capability', 'Current', 'Next')) {
+    if (Test-Path "${DEVICES_KEY}\$k") { $keysFound += $k }
+}
 
 $svcInstalled = $false
 $svcRunning = $false
@@ -107,10 +117,12 @@ if ($svc) {
 }
 
 [ordered]@{
-    isAdmin         = [bool]$isAdmin
-    driverInstalled = [bool]$driverInstalled
-    serviceInstalled = [bool]$svcInstalled
-    serviceRunning  = [bool]$svcRunning
+    isAdmin           = [bool]$isAdmin
+    driverInstalled   = [bool]$driverInstalled
+    devicesKeyPresent = [bool]$devicesKeyPresent
+    keysFound         = @($keysFound)
+    serviceInstalled  = [bool]$svcInstalled
+    serviceRunning    = [bool]$svcRunning
 } | ConvertTo-Json -Compress
 `
 
@@ -171,22 +183,40 @@ export class PowerShellProvider implements DriverProvider {
   async status(): Promise<DriverStatus> {
     let parsed: Partial<DriverStatus> = {}
     let message: string | null = null
+    let debug: string | null = null
     try {
       const raw = await runPowerShell(STATUS_SCRIPT, { timeoutMs: 20_000 })
       parsed = JSON.parse(raw) as Partial<DriverStatus>
     } catch (err) {
+      // Surface the real reason (PowerShell missing, policy blocked, script
+      // syntax error, timeout) instead of a generic "driver not found".
       message = err instanceof Error ? err.message : String(err)
+      debug = message
     }
 
     const driverInstalled = Boolean(parsed.driverInstalled)
+    const devicesKeyPresent = Boolean(parsed.devicesKeyPresent)
+    const keysFound = Array.isArray(parsed.keysFound) ? parsed.keysFound.map(String) : []
+
+    if (!message) {
+      if (!driverInstalled) {
+        message = `Registry key ${SERVICE_KEY} was not found.`
+      } else if (!devicesKeyPresent) {
+        message = `${DEVICES_KEY} does not exist yet — the driver creates it after a device is configured.`
+      }
+    }
+
     return {
       isWindows: true,
       isAdmin: Boolean(parsed.isAdmin),
       driverInstalled,
+      devicesKeyPresent,
+      keysFound,
       serviceInstalled: Boolean(parsed.serviceInstalled),
       serviceRunning: Boolean(parsed.serviceRunning),
       mock: false,
-      message: message ?? (driverInstalled ? null : 'AltA2DP registry key was not found.')
+      message,
+      debug
     }
   }
 
